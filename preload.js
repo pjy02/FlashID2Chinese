@@ -270,6 +270,8 @@ window.addEventListener('DOMContentLoaded', () => {
         "Launching: Profile is ready": "启动中: 窗口已就绪",
         "Launching: Applying configuration": "启动中: 应用配置中",
         "Launched: Profile is ready": "已启动: 窗口已就绪",
+        "Disable UDP": "禁用 UDP",
+        "Altered": "伪装",
     };
 
     function translateNode(node) {
