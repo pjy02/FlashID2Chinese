@@ -1,0 +1,50 @@
+name: Build and Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g. 1.2.3)'
+        required: true
+        type: string
+
+jobs:
+  build-release:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Prepare translated app.asar
+        shell: bash
+        run: |
+          node scripts/prepare-asar.js "${{ inputs.version }}"
+
+      - name: Build release binary
+        shell: bash
+        run: cargo build --release
+
+      - name: Package artifact
+        shell: bash
+        run: |
+          mkdir -p dist
+          cp target/release/FlashID2Chinese.exe "dist/FlashID2Chinese-${{ inputs.version }}.exe"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "v${{ inputs.version }}"
+          name: "v${{ inputs.version }}"
+          files: |
+            dist/FlashID2Chinese-${{ inputs.version }}.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
