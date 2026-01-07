@@ -55,10 +55,33 @@ function main() {
     throw new Error(`❌ Failed to extract app.asar: ${error.message}`);
   }
 
-  // 复制 unpacked 文件
-  console.log('\n📁 Copying unpacked files...');
+  // 复制 unpacked 文件（不覆盖已存在文件）
+  console.log('\n📁 Copying unpacked files (preserve existing contents)...');
   try {
-    fs.cpSync(inputUnpacked, extractedDir, { recursive: true, force: true });
+    const copyPreserve = (source, destination) => {
+      const entries = fs.readdirSync(source, { withFileTypes: true });
+
+      for (const entry of entries) {
+        const srcPath = path.join(source, entry.name);
+        const destPath = path.join(destination, entry.name);
+
+        if (entry.isDirectory()) {
+          if (!fs.existsSync(destPath)) {
+            fs.mkdirSync(destPath, { recursive: true });
+          }
+          copyPreserve(srcPath, destPath);
+          continue;
+        }
+
+        if (fs.existsSync(destPath)) {
+          continue;
+        }
+
+        fs.copyFileSync(srcPath, destPath);
+      }
+    };
+
+    copyPreserve(inputUnpacked, extractedDir);
     console.log('✅ Unpacked files copied');
   } catch (error) {
     throw new Error(`❌ Failed to copy unpacked files: ${error.message}`);
@@ -66,7 +89,7 @@ function main() {
 
   // 查找并替换 preload.js
   console.log('\n🔍 Looking for preload.js in dist directory...');
-  const targetPreload = path.join(extractedDir, 'dist', 'preload.js');
+  let targetPreload = path.join(extractedDir, 'dist', 'preload.js');
   
   if (!fs.existsSync(targetPreload)) {
     // 尝试其他可能的位置
@@ -98,21 +121,24 @@ function main() {
     throw new Error(`❌ Project preload.js not found at: ${projectPreload}`);
   }
 
-  console.log('\n📝 Replacing preload.js with Chinese translation...');
+  console.log('\n📝 Appending Chinese translation to preload.js...');
   try {
     // 先备份原文件（可选）
     const backupPath = targetPreload + '.original';
     fs.copyFileSync(targetPreload, backupPath);
     console.log(`   💾 Original backed up to: ${backupPath.replace(extractedDir, '')}`);
-    
-    // 替换文件
-    fs.copyFileSync(projectPreload, targetPreload);
-    console.log('✅ preload.js replaced successfully!');
-    
+
+    // 追加翻译内容
+    const originalContent = fs.readFileSync(targetPreload, 'utf8');
+    const translationContent = fs.readFileSync(projectPreload, 'utf8');
+    const combinedContent = `${originalContent}\n\n${translationContent}`;
+    fs.writeFileSync(targetPreload, combinedContent);
+    console.log('✅ preload.js updated successfully!');
+
     // 验证文件
-    const replacedContent = fs.readFileSync(targetPreload, 'utf8');
-    if (replacedContent.includes('const i18n = {')) {
-      console.log('✅ Verified: Chinese translation detected in replaced file');
+    const updatedContent = fs.readFileSync(targetPreload, 'utf8');
+    if (updatedContent.includes('const i18n = {')) {
+      console.log('✅ Verified: Chinese translation detected in updated file');
     } else {
       console.warn('⚠️  Warning: i18n block not detected, but file was replaced');
     }
