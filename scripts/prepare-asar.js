@@ -8,98 +8,6 @@ function usage() {
   console.error('Usage: node scripts/prepare-asar.js <version>');
 }
 
-function extractI18nBlock(content) {
-  const regex = /const i18n = \{([\s\S]*?)^\s*\};/m;
-  const match = content.match(regex);
-  if (!match) {
-    throw new Error('Unable to locate i18n block.');
-  }
-  return {
-    block: match[1],
-    start: match.index,
-    end: match.index + match[0].length,
-  };
-}
-
-function parseI18n(block) {
-  const literal = `{${block}}`;
-  // eslint-disable-next-line no-new-func
-  return Function(`"use strict"; return (${literal});`)();
-}
-
-function mergeI18n(originalPath, overlayPath) {
-  const originalContent = fs.readFileSync(originalPath, 'utf8');
-  const overlayContent = fs.readFileSync(overlayPath, 'utf8');
-
-  const originalBlock = extractI18nBlock(originalContent);
-  const overlayBlock = extractI18nBlock(overlayContent);
-
-  const originalMap = parseI18n(originalBlock.block);
-  const overlayMap = parseI18n(overlayBlock.block);
-
-  const missingEntries = [];
-  for (const [key, value] of Object.entries(overlayMap)) {
-    if (!(key in originalMap)) {
-      missingEntries.push([key, value]);
-    }
-  }
-
-  if (missingEntries.length === 0) {
-    return;
-  }
-
-  const indentMatch = originalContent.slice(0, originalBlock.start).match(/(^|\n)(\s*)const i18n/);
-  const baseIndent = indentMatch ? indentMatch[2] : '';
-  const entryIndent = `${baseIndent}    `;
-
-  const trimmedBlock = originalBlock.block.replace(/\s*$/, '');
-  const newLines = missingEntries
-    .map(([key, value]) => `${entryIndent}${JSON.stringify(key)}: ${JSON.stringify(value)},`)
-    .join('\n');
-
-  const updatedBlock = `${trimmedBlock}\n${newLines}\n${baseIndent}`;
-  const updatedContent = `${originalContent.slice(0, originalBlock.start)}const i18n = {${updatedBlock}};${originalContent.slice(originalBlock.end)}`;
-
-  fs.writeFileSync(originalPath, updatedContent, 'utf8');
-}
-
-function findPreloadFile(rootDir) {
-  const matches = [];
-  function walk(dir) {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      const fullPath = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        walk(fullPath);
-      } else if (entry.isFile() && entry.name === 'preload.js') {
-        matches.push(fullPath);
-      }
-    }
-  }
-  walk(rootDir);
-  return matches;
-}
-
-function selectPreloadFile(matches) {
-  if (matches.length === 1) {
-    return matches[0];
-  }
-
-  const normalized = matches.map((item) => item.replace(/\\/g, '/'));
-  const preferred = [
-    '/dist/preload.js',
-    '/dist/statics/js/preload.js',
-  ];
-
-  for (const suffix of preferred) {
-    const index = normalized.findIndex((item) => item.endsWith(suffix));
-    if (index !== -1) {
-      return matches[index];
-    }
-  }
-
-  return null;
-}
-
 function main() {
   const version = process.argv[2];
   if (!version) {
@@ -107,56 +15,183 @@ function main() {
     process.exit(1);
   }
 
+  console.log(`\n🚀 Starting preparation for version ${version}\n`);
+
   const repoRoot = path.resolve(__dirname, '..');
   const inputDir = path.join(repoRoot, 'inputs', version);
   const inputAsar = path.join(inputDir, 'app.asar');
   const inputUnpacked = path.join(inputDir, 'app.asar.unpacked');
 
+  // 检查输入文件
   if (!fs.existsSync(inputAsar)) {
-    throw new Error(`Missing app.asar at ${inputAsar}`);
+    throw new Error(`❌ Missing app.asar at ${inputAsar}`);
   }
   if (!fs.existsSync(inputUnpacked)) {
-    throw new Error(`Missing app.asar.unpacked at ${inputUnpacked}`);
+    throw new Error(`❌ Missing app.asar.unpacked at ${inputUnpacked}`);
   }
 
+  console.log('✅ Input files found');
+
+  // 创建工作目录
   const workDir = fs.mkdtempSync(path.join(repoRoot, 'asar-work-'));
   const extractedDir = path.join(workDir, 'extracted');
   const outputDir = path.join(workDir, 'output');
   fs.mkdirSync(extractedDir, { recursive: true });
   fs.mkdirSync(outputDir, { recursive: true });
 
+  console.log(`📁 Working directory: ${workDir}`);
+
+  // 解包 app.asar
+  console.log('\n📦 Extracting app.asar...');
   const npxCommand = process.platform === 'win32' ? 'npx.cmd' : 'npx';
 
-  execFileSync(npxCommand, ['--yes', 'asar', 'extract', inputAsar, extractedDir], { stdio: 'inherit', shell: true });
-  fs.cpSync(inputUnpacked, extractedDir, { recursive: true, force: true });
-
-  const preloadMatches = findPreloadFile(extractedDir);
-  const selectedPreload = selectPreloadFile(preloadMatches);
-  if (!selectedPreload) {
-    throw new Error(`Unable to select preload.js. Candidates: ${preloadMatches.join(', ')}`);
+  try {
+    execFileSync(npxCommand, ['--yes', 'asar', 'extract', inputAsar, extractedDir], { 
+      stdio: 'inherit', 
+      shell: true 
+    });
+    console.log('✅ Extraction complete');
+  } catch (error) {
+    throw new Error(`❌ Failed to extract app.asar: ${error.message}`);
   }
 
+  // 复制 unpacked 文件
+  console.log('\n📁 Copying unpacked files...');
+  try {
+    fs.cpSync(inputUnpacked, extractedDir, { recursive: true, force: true });
+    console.log('✅ Unpacked files copied');
+  } catch (error) {
+    throw new Error(`❌ Failed to copy unpacked files: ${error.message}`);
+  }
+
+  // 查找并替换 preload.js
+  console.log('\n🔍 Looking for preload.js in dist directory...');
+  const targetPreload = path.join(extractedDir, 'dist', 'preload.js');
+  
+  if (!fs.existsSync(targetPreload)) {
+    // 尝试其他可能的位置
+    const alternativePaths = [
+      path.join(extractedDir, 'dist', 'statics', 'js', 'preload.js'),
+      path.join(extractedDir, 'preload.js'),
+    ];
+    
+    let found = false;
+    for (const altPath of alternativePaths) {
+      if (fs.existsSync(altPath)) {
+        console.log(`✅ Found preload.js at: ${altPath.replace(extractedDir, '')}`);
+        targetPreload = altPath;
+        found = true;
+        break;
+      }
+    }
+    
+    if (!found) {
+      throw new Error(`❌ Cannot find preload.js in expected locations`);
+    }
+  } else {
+    console.log('✅ Found preload.js at: /dist/preload.js');
+  }
+
+  // 替换 preload.js
   const projectPreload = path.join(repoRoot, 'preload.js');
-  mergeI18n(selectedPreload, projectPreload);
+  if (!fs.existsSync(projectPreload)) {
+    throw new Error(`❌ Project preload.js not found at: ${projectPreload}`);
+  }
 
-  const unpackEntries = fs.readdirSync(inputUnpacked, { withFileTypes: true });
-  const unpackDirs = unpackEntries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
-  const unpackFiles = unpackEntries.filter((entry) => entry.isFile()).map((entry) => entry.name);
+  console.log('\n📝 Replacing preload.js with Chinese translation...');
+  try {
+    // 先备份原文件（可选）
+    const backupPath = targetPreload + '.original';
+    fs.copyFileSync(targetPreload, backupPath);
+    console.log(`   💾 Original backed up to: ${backupPath.replace(extractedDir, '')}`);
+    
+    // 替换文件
+    fs.copyFileSync(projectPreload, targetPreload);
+    console.log('✅ preload.js replaced successfully!');
+    
+    // 验证文件
+    const replacedContent = fs.readFileSync(targetPreload, 'utf8');
+    if (replacedContent.includes('const i18n = {')) {
+      console.log('✅ Verified: Chinese translation detected in replaced file');
+    } else {
+      console.warn('⚠️  Warning: i18n block not detected, but file was replaced');
+    }
+  } catch (error) {
+    throw new Error(`❌ Failed to replace preload.js: ${error.message}`);
+  }
 
+  // 重新打包
+  console.log('\n📦 Repacking app.asar...');
+  
+  try {
+    const unpackEntries = fs.readdirSync(inputUnpacked, { withFileTypes: true });
+    const unpackDirs = unpackEntries
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name);
+    const unpackFiles = unpackEntries
+      .filter((entry) => entry.isFile())
+      .map((entry) => entry.name);
+
+    const outputAsar = path.join(outputDir, 'app.asar');
+    const packArgs = ['--yes', 'asar', 'pack', extractedDir, outputAsar];
+
+    // 添加需要保持 unpacked 的目录和文件
+    for (const dir of unpackDirs) {
+      packArgs.push('--unpack-dir', dir);
+    }
+    for (const file of unpackFiles) {
+      packArgs.push('--unpack', file);
+    }
+
+    console.log(`   Unpacking ${unpackDirs.length} directories and ${unpackFiles.length} files`);
+    execFileSync(npxCommand, packArgs, { stdio: 'inherit', shell: true });
+    console.log('✅ Repacking complete');
+  } catch (error) {
+    throw new Error(`❌ Failed to repack app.asar: ${error.message}`);
+  }
+
+  // 复制到项目根目录
+  console.log('\n💾 Copying final app.asar to project root...');
+  const finalAsar = path.join(repoRoot, 'app.asar');
   const outputAsar = path.join(outputDir, 'app.asar');
-  const packArgs = ['--yes', 'asar', 'pack', extractedDir, outputAsar];
-
-  for (const dir of unpackDirs) {
-    packArgs.push('--unpack-dir', dir);
+  
+  try {
+    fs.copyFileSync(outputAsar, finalAsar);
+    const stats = fs.statSync(finalAsar);
+    console.log(`✅ Final app.asar created: ${(stats.size / 1024 / 1024).toFixed(2)} MB`);
+  } catch (error) {
+    throw new Error(`❌ Failed to copy final asar: ${error.message}`);
   }
-  for (const file of unpackFiles) {
-    packArgs.push('--unpack', file);
+
+  // 清理临时文件
+  console.log('\n🧹 Cleaning up temporary files...');
+  try {
+    fs.rmSync(workDir, { recursive: true, force: true });
+    console.log('✅ Cleanup complete');
+  } catch (error) {
+    console.warn(`⚠️  Warning: Failed to cleanup temp directory: ${error.message}`);
   }
 
-  execFileSync(npxCommand, packArgs, { stdio: 'inherit', shell: true });
-
-  fs.copyFileSync(outputAsar, path.join(repoRoot, 'app.asar'));
-  fs.rmSync(workDir, { recursive: true, force: true });
+  console.log('\n' + '='.repeat(60));
+  console.log('✨ Preparation complete successfully!');
+  console.log('='.repeat(60));
+  console.log(`\n📦 Output: ${finalAsar}`);
+  console.log('🎉 Ready for building!\n');
 }
 
-main();
+// 主执行
+try {
+  main();
+} catch (error) {
+  console.error('\n' + '='.repeat(60));
+  console.error('❌ ERROR: Preparation failed');
+  console.error('='.repeat(60));
+  console.error(`\n${error.message}\n`);
+  
+  if (error.stack) {
+    console.error('Stack trace:');
+    console.error(error.stack);
+  }
+  
+  process.exit(1);
+}
