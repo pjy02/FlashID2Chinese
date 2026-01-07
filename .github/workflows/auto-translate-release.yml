@@ -33,18 +33,59 @@ jobs:
         shell: bash
         run: cargo build --release
 
-      - name: Package artifact
+      - name: Package artifacts
         shell: bash
         run: |
           mkdir -p dist
           cp target/release/FlashID2Chinese.exe "dist/FlashID2Chinese-${{ inputs.version }}.exe"
+          cp app.asar "dist/app-${{ inputs.version }}.asar"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: "v${{ inputs.version }}"
           name: "v${{ inputs.version }}"
+          body: |
+            ## FlashID 中文汉化 v${{ inputs.version }}
+            
+            ### 📦 发布内容
+            
+            - **FlashID2Chinese-${{ inputs.version }}.exe** - 汉化工具（推荐使用）
+              - 将此程序放到 FlashID 安装目录
+              - 以管理员身份运行
+              - 自动完成汉化
+            
+            - **app-${{ inputs.version }}.asar** - 汉化后的资源文件
+              - 手动替换使用
+              - 备份原 `resources/app.asar` 后替换此文件
+            
+            ### 📝 使用说明
+            
+            **方式一：使用汉化工具（推荐）**
+            1. 下载 `FlashID2Chinese-${{ inputs.version }}.exe`
+            2. 将其移动到 FlashID 安装目录（通常在 `C:\Program Files\FlashID` 或 `C:\Users\你的用户名\AppData\Local\Programs\FlashID`）
+            3. 右键 → 以管理员身份运行
+            4. 等待提示"汉化完成"
+            5. 重启 FlashID 即可
+            
+            **方式二：手动替换 app.asar**
+            1. 下载 `app-${{ inputs.version }}.asar`
+            2. 找到 FlashID 安装目录下的 `resources` 文件夹
+            3. 备份原 `app.asar` 文件（重命名为 `app.asar.backup`）
+            4. 将下载的文件重命名为 `app.asar` 并替换
+            5. 重启 FlashID 即可
+            
+            ### ⚠️ 注意事项
+            
+            - 请确保下载的版本号与你的 FlashID 版本一致
+            - 汉化前建议备份原文件
+            - 如遇问题，可恢复备份文件
+            
+            ---
+            
+            💬 如有问题或建议，欢迎在 Issues 中反馈！
           files: |
             dist/FlashID2Chinese-${{ inputs.version }}.exe
+            dist/app-${{ inputs.version }}.asar
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
