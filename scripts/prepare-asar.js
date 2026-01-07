@@ -79,6 +79,27 @@ function findPreloadFile(rootDir) {
   return matches;
 }
 
+function selectPreloadFile(matches) {
+  if (matches.length === 1) {
+    return matches[0];
+  }
+
+  const normalized = matches.map((item) => item.replace(/\\/g, '/'));
+  const preferred = [
+    '/dist/preload.js',
+    '/dist/statics/js/preload.js',
+  ];
+
+  for (const suffix of preferred) {
+    const index = normalized.findIndex((item) => item.endsWith(suffix));
+    if (index !== -1) {
+      return matches[index];
+    }
+  }
+
+  return null;
+}
+
 function main() {
   const version = process.argv[2];
   if (!version) {
@@ -110,12 +131,13 @@ function main() {
   fs.cpSync(inputUnpacked, extractedDir, { recursive: true, force: true });
 
   const preloadMatches = findPreloadFile(extractedDir);
-  if (preloadMatches.length !== 1) {
-    throw new Error(`Expected exactly one preload.js, found ${preloadMatches.length}: ${preloadMatches.join(', ')}`);
+  const selectedPreload = selectPreloadFile(preloadMatches);
+  if (!selectedPreload) {
+    throw new Error(`Unable to select preload.js. Candidates: ${preloadMatches.join(', ')}`);
   }
 
   const projectPreload = path.join(repoRoot, 'preload.js');
-  mergeI18n(preloadMatches[0], projectPreload);
+  mergeI18n(selectedPreload, projectPreload);
 
   const unpackEntries = fs.readdirSync(inputUnpacked, { withFileTypes: true });
   const unpackDirs = unpackEntries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
