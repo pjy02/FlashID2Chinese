@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Tab Assistant",
+  "version": "1.0.0",
+  "description": "FlashID tab assistant extension",
+  "background": {
+    "service_worker": "./dist/background.js"
+  },
+  "permissions": [
+    "tabs",
+    "storage",
+    "activeTab",
+    "cookies",
+    "notifications",
+    "declarativeNetRequest"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ]
+}
