@@ -39,6 +39,7 @@ jobs:
           mkdir -p dist
           cp target/release/FlashID2Chinese.exe "dist/FlashID2Chinese-${{ inputs.version }}.exe"
           cp app.asar "dist/app.asar"
+          cp dist/app.asar app.asar
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
