@@ -36,9 +36,10 @@ inputs/1.2.3/app.asar.unpacked/
 
 流程会自动执行以下操作：
 
-- 解包 `app.asar`，合并 `preload.js` 中缺失的翻译条目。
-- 保留 `app.asar.unpacked` 中的内容并重新打包。
+- 解包 `app.asar`，将项目中的翻译内容追加到原始 `preload.js`。
+- 合并 `app.asar.unpacked` 中的内容并完整打包为新的 `app.asar`。
 - 构建 `FlashID2Chinese.exe`。
+- 将生成的 `app.asar` 提交回仓库根目录。
 - 按版本号发布到 Releases（标签为 `v<版本号>`）。
 
 <img width="1470" height="767" alt="image" src="https://github.com/user-attachments/assets/2755682b-3034-4954-b088-456ac6c9a81e" />
