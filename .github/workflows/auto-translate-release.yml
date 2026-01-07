@@ -8,6 +8,9 @@ on:
         required: true
         type: string
 
+permissions:
+  contents: write
+
 jobs:
   build-release:
     runs-on: windows-latest
@@ -39,7 +42,20 @@ jobs:
           mkdir -p dist
           cp target/release/FlashID2Chinese.exe "dist/FlashID2Chinese-${{ inputs.version }}.exe"
           cp app.asar "dist/app.asar"
+
+      - name: Commit app.asar to repository
+        shell: bash
+        run: |
           cp dist/app.asar app.asar
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add app.asar
+          if git diff --cached --quiet; then
+            echo "No app.asar changes to commit."
+            exit 0
+          fi
+          git commit -m "Update app.asar for v${{ inputs.version }}"
+          git push
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
