@@ -72,7 +72,7 @@ jobs:
             1. 下载 `app.asar`
             2. 找到 FlashID 安装目录下的 `resources` 文件夹
             3. 备份原 `app.asar` 文件（重命名为 `app.asar.backup`）
-            4. 将下载的文件重命名为 `app.asar` 并替换
+            4. 将下载的文件替换原 `app.asar`
             5. 重启 FlashID 即可
             
             ### ⚠️ 注意事项
