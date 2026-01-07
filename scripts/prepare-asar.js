@@ -147,29 +147,13 @@ function main() {
   }
 
   // 重新打包
-  console.log('\n📦 Repacking app.asar...');
+  console.log('\n📦 Repacking app.asar (Force Full Pack)...');
   
   try {
-    const unpackEntries = fs.readdirSync(inputUnpacked, { withFileTypes: true });
-    const unpackDirs = unpackEntries
-      .filter((entry) => entry.isDirectory())
-      .map((entry) => entry.name);
-    const unpackFiles = unpackEntries
-      .filter((entry) => entry.isFile())
-      .map((entry) => entry.name);
-
     const outputAsar = path.join(outputDir, 'app.asar');
     const packArgs = ['--yes', 'asar', 'pack', extractedDir, outputAsar];
 
-    // 添加需要保持 unpacked 的目录和文件
-    for (const dir of unpackDirs) {
-      packArgs.push('--unpack-dir', dir);
-    }
-    for (const file of unpackFiles) {
-      packArgs.push('--unpack', file);
-    }
-
-    console.log(`   Unpacking ${unpackDirs.length} directories and ${unpackFiles.length} files`);
+    console.log('   Executing standard pack command...');
     execFileSync(npxCommand, packArgs, { stdio: 'inherit', shell: true });
     console.log('✅ Repacking complete');
   } catch (error) {
