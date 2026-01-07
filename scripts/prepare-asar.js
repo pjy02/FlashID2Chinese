@@ -55,10 +55,33 @@ function main() {
     throw new Error(`❌ Failed to extract app.asar: ${error.message}`);
   }
 
-  // 复制 unpacked 文件
-  console.log('\n📁 Copying unpacked files...');
+  // 复制 unpacked 文件（不覆盖已存在文件）
+  console.log('\n📁 Copying unpacked files (preserve existing contents)...');
   try {
-    fs.cpSync(inputUnpacked, extractedDir, { recursive: true, force: true });
+    const copyPreserve = (source, destination) => {
+      const entries = fs.readdirSync(source, { withFileTypes: true });
+
+      for (const entry of entries) {
+        const srcPath = path.join(source, entry.name);
+        const destPath = path.join(destination, entry.name);
+
+        if (entry.isDirectory()) {
+          if (!fs.existsSync(destPath)) {
+            fs.mkdirSync(destPath, { recursive: true });
+          }
+          copyPreserve(srcPath, destPath);
+          continue;
+        }
+
+        if (fs.existsSync(destPath)) {
+          continue;
+        }
+
+        fs.copyFileSync(srcPath, destPath);
+      }
+    };
+
+    copyPreserve(inputUnpacked, extractedDir);
     console.log('✅ Unpacked files copied');
   } catch (error) {
     throw new Error(`❌ Failed to copy unpacked files: ${error.message}`);
