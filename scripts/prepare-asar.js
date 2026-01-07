@@ -104,7 +104,9 @@ function main() {
   fs.mkdirSync(extractedDir, { recursive: true });
   fs.mkdirSync(outputDir, { recursive: true });
 
-  execFileSync('npx', ['--yes', 'asar', 'extract', inputAsar, extractedDir], { stdio: 'inherit' });
+  const npxCommand = process.platform === 'win32' ? 'npx.cmd' : 'npx';
+
+  execFileSync(npxCommand, ['--yes', 'asar', 'extract', inputAsar, extractedDir], { stdio: 'inherit' });
   fs.cpSync(inputUnpacked, extractedDir, { recursive: true, force: true });
 
   const preloadMatches = findPreloadFile(extractedDir);
@@ -129,7 +131,7 @@ function main() {
     packArgs.push('--unpack', file);
   }
 
-  execFileSync('npx', packArgs, { stdio: 'inherit' });
+  execFileSync(npxCommand, packArgs, { stdio: 'inherit' });
 
   fs.copyFileSync(outputAsar, path.join(repoRoot, 'app.asar'));
   fs.rmSync(workDir, { recursive: true, force: true });
