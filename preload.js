@@ -331,14 +331,14 @@ window.addEventListener('DOMContentLoaded', () => {
     function translateNode(node) {
         if (node.nodeType === 3) {
             const text = node.nodeValue.trim();
-            if (text && i18n[text]) {
+            if (text && i18n[text] && i18n[text] !== text) {
                 node.nodeValue = node.nodeValue.replace(text, i18n[text]);
             }
         }
         else if (node.nodeType === 1) {
             if (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA') {
                 const ph = node.getAttribute('placeholder');
-                if (ph && i18n[ph]) {
+                if (ph && i18n[ph] && i18n[ph] !== ph) {
                     node.setAttribute('placeholder', i18n[ph]);
                 }
             }
